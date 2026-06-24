@@ -6,7 +6,7 @@ on:
 
 jobs:
   sync-documentation:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.body, '[docs]')
     runs-on: ubuntu-latest
     env:
       PLATFORM_NAME: "backoffice" # SILAKAN UBAH INI SESUAI NAMA REPO/PLATFORM (cth: "web", "bo-terminal")
@@ -23,19 +23,20 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
           PR_AUTHOR: ${{ github.actor }}
         run: |
           # 1. Data PR sudah aman tersedia melalui environment variables
 
           # 2. Membersihkan judul PR agar aman digunakan sebagai nama file (slugify)
-          SAFE_TITLE=$(echo "$PR_TITLE" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-')
+          SAFE_TITLE=$(echo "$PR_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-')
           TIMESTAMP=$(date +'%Y%m%d')
           FILE_NAME="${TIMESTAMP}-PR-${PR_NUMBER}-${SAFE_TITLE}.md"
 
-          # Menentukan folder tujuan berdasarkan platform dan waktu (contoh: frontend-changes-logs/web/2026-june)
+          # Menentukan folder tujuan berdasarkan platform dan waktu
           YEAR=$(date +'%Y')
           MONTH_LOWER=$(date +'%B' | tr '[:upper:]' '[:lower:]')
-          DOCS_FOLDER="frontend-changes-logs/${PLATFORM_NAME}/${YEAR}/${MONTH_LOWER}"
+          DOCS_FOLDER="frontend-changelogs/${PLATFORM_NAME}/${YEAR}/${MONTH_LOWER}"
 
           # 3. Clone Repo Docs Sandbox menggunakan rahasia token PAT
           git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/dimaskurniawan0804/doc-sandbox.git target-docs
@@ -46,14 +47,17 @@ jobs:
           TARGET_PATH="${DOCS_FOLDER}/${FILE_NAME}"
 
           # 4. Menyusun konten file Markdown (.md) untuk dokumentasi
-          echo "# $PR_TITLE" > "$TARGET_PATH"
-          echo -e "\n- **Original PR:** #${PR_NUMBER}" >> "$TARGET_PATH"
-          echo -e "- **Merged By:** @${PR_AUTHOR}" >> "$TARGET_PATH"
-          echo -e "- **Date Merged:** $(date +'%Y-%m-%d %H:%M:%S')\n" >> "$TARGET_PATH"
-          echo "---" >> "$TARGET_PATH"
+          echo "# 📝 $PR_TITLE" > "$TARGET_PATH"
+          echo -e "\n| 🏷️ Detail | 📌 Keterangan |" >> "$TARGET_PATH"
+          echo -e "|---------|------------|" >> "$TARGET_PATH"
+          echo -e "| **🔗 Original PR** | [#${PR_NUMBER}]($PR_URL) |" >> "$TARGET_PATH"
+          echo -e "| **👤 Merged By** | @${PR_AUTHOR} |" >> "$TARGET_PATH"
+          echo -e "| **🕒 Date Merged** | $(date +'%Y-%m-%d %H:%M:%S') |\n" >> "$TARGET_PATH"
+          echo -e "---\n" >> "$TARGET_PATH"
+          echo -e "## 📖 Deskripsi Perubahan\n" >> "$TARGET_PATH"
 
           # Memasukkan isi deskripsi PR dengan aman melalui env variable
-          echo -e "\n$PR_BODY" >> "$TARGET_PATH"
+          echo -e "$PR_BODY\n" >> "$TARGET_PATH"
 
           # 5. Commit dan Push file dokumen baru ke Repo Docs
           git config --global user.name "github-actions[bot]"
@@ -71,6 +75,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
           DOCS_URL: ${{ steps.docs_processor.outputs.generated_url }}
         run: |
           git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/${{ github.repository }}.wiki.git main-wiki
@@ -89,16 +94,22 @@ jobs:
           date_now = os.environ.get('DATE_NOW', '')
           pr_num = os.environ.get('PR_NUMBER', '')
           pr_title = os.environ.get('PR_TITLE', '')
+          pr_url = os.environ.get('PR_URL', '#')
           docs_url = os.environ.get('DOCS_URL', '')
 
-          link = f"- [{date_now}] PR #{pr_num}: [{pr_title}]({docs_url})"
+          link = f"- 🕒 [{date_now}] 🔗 [PR #{pr_num}]({pr_url}) : 📄 [{pr_title}]({docs_url})"
 
           content = []
           if os.path.exists(page):
               with open(page, "r", encoding="utf-8") as f:
                   content = f.read().splitlines()
           else:
-              content = ["# Frontend Changes Log", ""]
+              content = [
+                  "# 📚 Frontend Changes Log",
+                  "",
+                  "> Riwayat dokumentasi perubahan frontend yang dikelompokkan berdasarkan **Platform**, **Tahun**, dan **Bulan**.",
+                  ""
+              ]
 
           def find_header(lines, level, title, start_idx, end_idx):
               prefix = "#" * level + " " + title
@@ -117,25 +128,28 @@ jobs:
               return len(lines)
 
           # 1. Platform (H2)
-          p_idx = find_header(content, 2, platform, 0, len(content))
+          platform_title = f"🖥️ {platform}"
+          p_idx = find_header(content, 2, platform_title, 0, len(content))
           if p_idx == -1:
-              content.extend(["", f"## {platform}", ""])
+              content.extend(["", f"## {platform_title}", ""])
               p_idx = len(content) - 2
           p_end = find_next_header_of_level_or_higher(content, 2, p_idx + 1)
 
           # 2. Year (H3)
-          y_idx = find_header(content, 3, year, p_idx + 1, p_end)
+          year_title = f"📅 {year}"
+          y_idx = find_header(content, 3, year_title, p_idx + 1, p_end)
           if y_idx == -1:
-              content.insert(p_end, f"### {year}")
+              content.insert(p_end, f"### {year_title}")
               content.insert(p_end + 1, "")
               y_idx = p_end
               p_end += 2
           y_end = find_next_header_of_level_or_higher(content, 3, y_idx + 1)
 
           # 3. Month (H4)
-          m_idx = find_header(content, 4, month, y_idx + 1, y_end)
+          month_title = f"📌 {month}"
+          m_idx = find_header(content, 4, month_title, y_idx + 1, y_end)
           if m_idx == -1:
-              content.insert(y_end, f"#### {month}")
+              content.insert(y_end, f"#### {month_title}")
               content.insert(y_end + 1, "")
               m_idx = y_end
               y_end += 2
