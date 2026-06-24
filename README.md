@@ -13,3 +13,5 @@ ini test untuk PR dan flow ke docs #1
 #6 update doc repo folder structure
 
 #7 update wiki structure
+
+#8
