@@ -9,7 +9,7 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     env:
-      PLATFORM_NAME: "terminal" # SILAKAN UBAH INI SESUAI NAMA REPO/PLATFORM (cth: "web", "bo-terminal")
+      PLATFORM_NAME: "backoffice" # SILAKAN UBAH INI SESUAI NAMA REPO/PLATFORM (cth: "web", "bo-terminal")
 
     steps:
       # STEP 1: Mengunduh source code Repo Utama ke runner
