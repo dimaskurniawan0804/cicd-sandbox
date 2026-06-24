@@ -1,76 +1,42 @@
-name: Cross-Repo Documentation Sync
+# STEP 2: Memproses deskripsi PR, push ke Repo Docs, dan membuat URL tujuan
+- name: Process PR Description and Push to Repo Docs
+  id: docs_processor
+  # Memasukkan body PR ke dalam Environment Variable agar aman dari karakter aneh/petik
+  env:
+    PR_BODY: ${{ github.event.pull_request.body }}
+  run: |
+    # 1. Mengambil data internal PR
+    PR_NUMBER="${{ github.event.pull_request.number }}"
+    PR_TITLE="${{ github.event.pull_request.title }}"
 
-on:
-  pull_request:
-    types: [closed]
+    # 2. Membersihkan judul PR agar aman digunakan sebagai nama file (slugify)
+    SAFE_TITLE=$(echo "$PR_TITLE" | sed 's/[^a-zA-Z0-9]/_ /g' | tr -s ' ' | tr ' ' '-')
+    TIMESTAMP=$(date +'%Y%m%d')
+    FILE_NAME="${TIMESTAMP}-PR-${PR_NUMBER}-${SAFE_TITLE}.md"
 
-jobs:
-  sync-documentation:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
+    # 3. Clone Repo Docs Sandbox menggunakan rahasia token PAT
+    git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/dimaskurniawan0804/doc-sandbox.git target-docs
 
-    steps:
-      - name: Checkout Main Repository
-        uses: actions/checkout@v4
+    cd target-docs
+    mkdir -p changes
 
-      - name: Process PR Description and Push to Repo Docs
-        id: docs_processor
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
+    # 4. Menyusun konten file Markdown (.md) untuk dokumentasi
+    echo "# $PR_TITLE" > "changes/$FILE_NAME"
+    echo -e "\n- **Original PR:** #${PR_NUMBER}" >> "changes/$FILE_NAME"
+    echo -e "- **Merged By:** @${{ github.actor }}" >> "changes/$FILE_NAME"
+    echo -e "- **Date Merged:** $(date +'%Y-%m-%d %H:%M:%S')\n" >> "changes/$FILE_NAME"
+    echo "---" >> "changes/$FILE_NAME"
 
-          SAFE_TITLE=$(echo "$PR_TITLE" | sed 's/[^a-zA-Z0-9]/_ /g' | tr -s ' ' | tr ' ' '-')
-          TIMESTAMP=$(date +'%Y%m%d')
-          FILE_NAME="${TIMESTAMP}-PR-${PR_NUMBER}-${SAFE_TITLE}.md"
+    # Memasukkan isi deskripsi PR dengan aman memanggil variabel $PR_BODY bawaan env
+    echo -e "\n$PR_BODY" >> "changes/$FILE_NAME"
 
-          # Clone ke Sandbox Docs Repo
-          git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/dimaskurniawan0804/doc-sandbox.git target-docs
+    # 5. Commit dan Push file dokumen baru ke Repo Docs
+    git config --global user.name "github-actions[bot]"
+    git config --global user.email "github-actions[bot]@users.noreply.github.com"
+    git add .
+    git commit -m "docs: auto-generated change-doc for PR #${PR_NUMBER}"
+    git push
 
-          cd target-docs
-          mkdir -p changes
-
-          echo "# $PR_TITLE" > "changes/$FILE_NAME"
-          echo -e "\n- **Original PR:** #${PR_NUMBER}" >> "changes/$FILE_NAME"
-          echo -e "- **Merged By:** @${{ github.actor }}" >> "changes/$FILE_NAME"
-          echo -e "- **Date Merged:** $(date +'%Y-%m-%d %H:%M:%S')\n" >> "changes/$FILE_NAME"
-          echo "---" >> "changes/$FILE_NAME"
-
-          echo -e "\n${{ github.event.pull_request.body }}" >> "changes/$FILE_NAME"
-
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "docs: auto-generated change-doc for PR #${PR_NUMBER}"
-          git push
-
-          FINAL_DOCS_URL="https://github.com/dimaskurniawan0804/doc-sandbox/blob/main/changes/${FILE_NAME}"
-          echo "generated_url=$FINAL_DOCS_URL" >> $GITHUB_OUTPUT
-
-      - name: Update Index Link in Main Repo Wiki
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          DOCS_URL="${{ steps.docs_processor.outputs.generated_url }}"
-          DATE_NOW=$(date +'%Y-%m-%d')
-
-          git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/${{ github.repository }}.wiki.git main-wiki
-
-          cd main-wiki
-
-          # JIKA FILE BELUM ADA: Buat file dengan tag komentar khusus sebagai jangkar sed
-          if [ ! -f "Home.md" ]; then
-            echo "# Project Changelog Index" > Home.md
-            echo -e "\nBerikut adalah daftar riwayat perubahan fitur yang berhasil di-merge:\n" >> Home.md
-            echo "" >> Home.md
-            echo "" >> Home.md
-          fi
-
-          NEW_LINK_ENTRY="- [$DATE_NOW] PR #$PR_NUMBER: [$PR_TITLE]($DOCS_URL)"
-
-          # Memasukkan link tepat di bawah tag sed -i "//a $NEW_LINK_ENTRY" Home.md
-
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add Home.md
-          git commit -m "wiki: added link index for PR #${PR_NUMBER}"
-          git push
+    # 6. Menyimpan URL file Markdown tersebut sebagai output agar bisa dibaca step berikutnya
+    FINAL_DOCS_URL="https://github.com/dimaskurniawan0804/doc-sandbox/blob/main/changes/${FILE_NAME}"
+    echo "generated_url=$FINAL_DOCS_URL" >> $GITHUB_OUTPUT
