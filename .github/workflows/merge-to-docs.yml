@@ -70,9 +70,9 @@ jobs:
 
           cd main-wiki
 
-          # JIKA FILE BELUM ADA: Buat file dengan tag komentar khusus sebagai jangkar sed
-          if [ ! -f "Home.md" ]; then
-            echo "# Project Changelog Index" > Home.md
+          # JIKA TAG INDEX BELUM ADA: Tambahkan tag komentar khusus sebagai jangkar awk
+          if [ ! -f "Home.md" ] || ! grep -q "<!-- INDEX-START -->" Home.md; then
+            echo -e "\n# Project Changelog Index" >> Home.md
             echo -e "\nBerikut adalah daftar riwayat perubahan fitur yang berhasil di-merge:\n" >> Home.md
             echo "<!-- INDEX-START -->" >> Home.md
             echo "<!-- INDEX-END -->" >> Home.md
