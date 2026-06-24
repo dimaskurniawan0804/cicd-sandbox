@@ -22,6 +22,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.actor }}
+          PLATFORM_NAME: "web" # SILAKAN UBAH INI SESUAI NAMA REPO/PLATFORM (cth: "web", "bo-terminal")
         run: |
           # 1. Data PR sudah aman tersedia melalui environment variables
 
@@ -30,31 +31,38 @@ jobs:
           TIMESTAMP=$(date +'%Y%m%d')
           FILE_NAME="${TIMESTAMP}-PR-${PR_NUMBER}-${SAFE_TITLE}.md"
 
+          # Menentukan folder tujuan berdasarkan platform dan waktu (contoh: frontend-changes-logs/web/2026-june)
+          YEAR=$(date +'%Y')
+          MONTH_LOWER=$(date +'%B' | tr '[:upper:]' '[:lower:]')
+          DOCS_FOLDER="frontend-changes-logs/${PLATFORM_NAME}/${YEAR}-${MONTH_LOWER}"
+
           # 3. Clone Repo Docs Sandbox menggunakan rahasia token PAT
           git clone https://x-access-token:${{ secrets.DOCS_REPO_TOKEN }}@github.com/dimaskurniawan0804/doc-sandbox.git target-docs
 
           cd target-docs
-          mkdir -p changes
+          mkdir -p "$DOCS_FOLDER"
+          
+          TARGET_PATH="${DOCS_FOLDER}/${FILE_NAME}"
 
           # 4. Menyusun konten file Markdown (.md) untuk dokumentasi
-          echo "# $PR_TITLE" > "changes/$FILE_NAME"
-          echo -e "\n- **Original PR:** #${PR_NUMBER}" >> "changes/$FILE_NAME"
-          echo -e "- **Merged By:** @${PR_AUTHOR}" >> "changes/$FILE_NAME"
-          echo -e "- **Date Merged:** $(date +'%Y-%m-%d %H:%M:%S')\n" >> "changes/$FILE_NAME"
-          echo "---" >> "changes/$FILE_NAME"
+          echo "# $PR_TITLE" > "$TARGET_PATH"
+          echo -e "\n- **Original PR:** #${PR_NUMBER}" >> "$TARGET_PATH"
+          echo -e "- **Merged By:** @${PR_AUTHOR}" >> "$TARGET_PATH"
+          echo -e "- **Date Merged:** $(date +'%Y-%m-%d %H:%M:%S')\n" >> "$TARGET_PATH"
+          echo "---" >> "$TARGET_PATH"
 
           # Memasukkan isi deskripsi PR dengan aman melalui env variable
-          echo -e "\n$PR_BODY" >> "changes/$FILE_NAME"
+          echo -e "\n$PR_BODY" >> "$TARGET_PATH"
 
           # 5. Commit dan Push file dokumen baru ke Repo Docs
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "docs: auto-generated change-doc for PR #${PR_NUMBER}"
+          git commit -m "docs: auto-generated change-doc for PR #${PR_NUMBER} (${PLATFORM_NAME})"
           git push
 
           # 6. Menyimpan URL file Markdown tersebut sebagai output agar bisa dibaca step berikutnya
-          FINAL_DOCS_URL="https://github.com/dimaskurniawan0804/doc-sandbox/blob/main/changes/${FILE_NAME}"
+          FINAL_DOCS_URL="https://github.com/dimaskurniawan0804/doc-sandbox/blob/main/${TARGET_PATH}"
           echo "generated_url=$FINAL_DOCS_URL" >> $GITHUB_OUTPUT
 
       # STEP 3: Mengunduh Wiki Repo Utama, lalu menambahkan link dokumen di baris paling atas
