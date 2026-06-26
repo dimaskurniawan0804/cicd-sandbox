@@ -17,3 +17,5 @@ ini test untuk PR dan flow ke docs #1
 #8
 
 #9
+
+#10 remove push to doc repo
