@@ -19,3 +19,5 @@ ini test untuk PR dan flow ke docs #1
 #9
 
 #10 remove push to doc repo
+
+#11 fix merge-to-docs flow
